@@ -1,0 +1,7 @@
+install_python
+install_vscode
+print_hello_world
+Number_Types
+string_ex1
+string_ex2
+Bool_ex1
