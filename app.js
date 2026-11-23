@@ -18,6 +18,7 @@ const firebaseConfig = {
   storageBucket: "phdai-480fa.firebasestorage.app",
   messagingSenderId: "629988212333",
   appId: "1:629988212333:web:41f63034a717aa4d920964"
+  measurementId: "G-H9Z1HRZH0Q"
 };
 
 // 3. تهيئة الاتصال بقاعدة البيانات
