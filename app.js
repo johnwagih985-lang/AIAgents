@@ -119,7 +119,30 @@ onSnapshot(q, (snapshot) => {
   });
 });
 
-// 4. تحديث دالة تسجيل الدخول لتقرأ من السحابة
+// دالة تطبيق صلاحيات الوكلاء على الصفحة الرئيسية
+function applyUserPermissions(user) {
+  if (!user || !user.agents) return;
+
+  // 1. بطاقة وكيل حل المشكلات
+  const problemCard = document.querySelector(".ai-problem-card");
+  if (problemCard) {
+    problemCard.style.display = user.agents.problem ? "" : "none";
+  }
+
+  // 2. بطاقة الوكيل البرمجي
+  const codeCard = document.getElementById("agent-code-card");
+  if (codeCard) {
+    codeCard.style.display = user.agents.code ? "" : "none";
+  }
+
+  // 3. بطاقة مساعد الذكاء الاصطناعي
+  const assistantCard = document.getElementById("agent-assistant-card");
+  if (assistantCard) {
+    assistantCard.style.display = user.agents.assistant ? "" : "none";
+  }
+}
+
+// 4. تحديث دالة تسجيل الدخول لتقرأ من السحابة وتطبق الصلاحيات
 const originalDoLogin = window.doLogin;
 window.doLogin = function() {
   const username = document.getElementById("login-username").value.trim();
@@ -136,13 +159,29 @@ window.doLogin = function() {
       loggedNameEl.textContent = foundUser.username;
       welcomeEl.style.display = "inline-flex";
     }
-    // حفظ الجلسة الحالية وتطبيق صلاحيات الوكلاء
+    
+    // حفظ الجلسة وتطبيق إخفاء/إظهار الوكلاء
     localStorage.setItem("currentUser", JSON.stringify(foundUser));
+    applyUserPermissions(foundUser);
     return;
   }
 
-  // إذا لم يكن في السحابة، جرب الدالة الأصلية (مثل حساب admin الافتراضي في script.js)
+  // إذا كان المدير (admin) الافتراضي، تأكد من إظهار جميع الوكلاء له
   if (typeof originalDoLogin === "function") {
     originalDoLogin();
+    applyUserPermissions({ agents: { problem: true, code: true, assistant: true } });
   }
 };
+
+// 5. إعادة تطبيق الصلاحيات تلقائياً إذا قام المستخدم بعمل تحديث (Refresh) للصفحة
+window.addEventListener("DOMContentLoaded", () => {
+  const savedUser = localStorage.getItem("currentUser");
+  if (savedUser) {
+    try {
+      const parsedUser = JSON.parse(savedUser);
+      applyUserPermissions(parsedUser);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+});
