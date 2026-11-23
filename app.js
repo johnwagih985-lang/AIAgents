@@ -141,8 +141,7 @@ function applyUserPermissions(user) {
     assistantCard.style.display = user.agents.assistant ? "" : "none";
   }
 }
-
-// 4. تحديث دالة تسجيل الدخول لتقرأ من السحابة وتطبق الصلاحيات
+// 4. تحديث دالة تسجيل الدخول لتخزين الجلسة وتطبيق الصلاحيات
 const originalDoLogin = window.doLogin;
 window.doLogin = function() {
   const username = document.getElementById("login-username").value.trim();
@@ -160,28 +159,76 @@ window.doLogin = function() {
       welcomeEl.style.display = "inline-flex";
     }
     
-    // حفظ الجلسة وتطبيق إخفاء/إظهار الوكلاء
+    // حفظ بيانات الجلسة بشكل دائم في المتصفح حتى يضغط المستخدم على زر خروج
     localStorage.setItem("currentUser", JSON.stringify(foundUser));
     applyUserPermissions(foundUser);
     return;
   }
 
-  // إذا كان المدير (admin) الافتراضي، تأكد من إظهار جميع الوكلاء له
+  // إذا كان المدير (admin) الافتراضي
   if (typeof originalDoLogin === "function") {
     originalDoLogin();
-    applyUserPermissions({ agents: { problem: true, code: true, assistant: true } });
+    // إذا نجح تسجيل الدخول كمدير واختفت نافذة الدخول، احفظ جلسته أيضاً
+    const loginModal = document.getElementById("login-modal");
+    if (loginModal && !loginModal.classList.contains("active")) {
+      const adminUser = {
+        username: username || "admin",
+        agents: { problem: true, code: true, assistant: true }
+      };
+      localStorage.setItem("currentUser", JSON.stringify(adminUser));
+      applyUserPermissions(adminUser);
+    }
   }
 };
 
-// 5. إعادة تطبيق الصلاحيات تلقائياً إذا قام المستخدم بعمل تحديث (Refresh) للصفحة
+// 5. تحديث دالة تسجيل الخروج لمسح الجلسة المحفوظة فقط عند الضغط على زر "خروج"
+const originalDoLogout = window.doLogout;
+window.doLogout = function() {
+  // مسح الجلسة المحفوظة
+  localStorage.removeItem("currentUser");
+  
+  // إعادة إظهار نافذة تسجيل الدخول وإخفاء رسالة الترحيب
+  const loginModal = document.getElementById("login-modal");
+  if (loginModal) {
+    loginModal.classList.add("active");
+  }
+  const welcomeEl = document.getElementById("user-welcome");
+  if (welcomeEl) {
+    welcomeEl.style.display = "none";
+  }
+
+  // استدعاء الدالة الأصلية في script.js إن وجدت
+  if (typeof originalDoLogout === "function") {
+    originalDoLogout();
+  }
+};
+
+// 6. التحقق من الجلسة المحفوظة عند تحميل أو تحديث الصفحة لإبقاء المستخدم مسجلاً للدخول
 window.addEventListener("DOMContentLoaded", () => {
   const savedUser = localStorage.getItem("currentUser");
   if (savedUser) {
     try {
       const parsedUser = JSON.parse(savedUser);
+      
+      // إخفاء نافذة تسجيل الدخول فوراً
+      const loginModal = document.getElementById("login-modal");
+      if (loginModal) {
+        loginModal.classList.remove("active");
+      }
+
+      // إظهار اسم المستخدم في الشريط العلوي
+      const welcomeEl = document.getElementById("user-welcome");
+      const loggedNameEl = document.getElementById("logged-username");
+      if (welcomeEl && loggedNameEl) {
+        loggedNameEl.textContent = parsedUser.username;
+        welcomeEl.style.display = "inline-flex";
+      }
+
+      // تطبيق صلاحيات الوكلاء الخاصة به
       applyUserPermissions(parsedUser);
     } catch (e) {
-      console.error(e);
+      console.error("خطأ في قراءة الجلسة المحفوظة:", e);
+      localStorage.removeItem("currentUser");
     }
   }
 });
