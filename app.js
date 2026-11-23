@@ -182,12 +182,70 @@ window.doLogin = function() {
 };
 
 // 5. تحديث دالة تسجيل الخروج لمسح الجلسة المحفوظة فقط عند الضغط على زر "خروج"
+// 4. تحديث دالة تسجيل الدخول لتخزين الجلسة وتوافقها مع باقي صفحات الموقع (مثل content.html)
+const originalDoLogin = window.doLogin;
+window.doLogin = function() {
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value.trim();
+
+  // التحقق من المستخدمين في Firebase
+  const foundUser = window.cloudUsers.find(u => u.username === username && u.password === password);
+  
+  if (foundUser) {
+    document.getElementById("login-modal").classList.remove("active");
+    const welcomeEl = document.getElementById("user-welcome");
+    const loggedNameEl = document.getElementById("logged-username");
+    if (welcomeEl && loggedNameEl) {
+      loggedNameEl.textContent = foundUser.username;
+      welcomeEl.style.display = "inline-flex";
+    }
+    
+    // 1. حفظ الجلسة لنظام Firebase
+    localStorage.setItem("currentUser", JSON.stringify(foundUser));
+    
+    // 2. حفظ مفاتيح الجلسة المتوافقة مع script.js القديم حتى لا يطردك من content.html
+    localStorage.setItem("loggedInUser", foundUser.username);
+    sessionStorage.setItem("loggedInUser", foundUser.username);
+    localStorage.setItem("isLoggedIn", "true");
+    sessionStorage.setItem("isLoggedIn", "true");
+
+    // إضافة المستخدم لقائمة users المحلية إن كان script.js يبحث فيها
+    try {
+      let localUsers = JSON.parse(localStorage.getItem("users") || "[]");
+      if (!localUsers.some(u => u.username === foundUser.username)) {
+        localUsers.push(foundUser);
+        localStorage.setItem("users", JSON.stringify(localUsers));
+      }
+    } catch (e) {}
+
+    applyUserPermissions(foundUser);
+    return;
+  }
+
+  // إذا كان المدير (admin) الافتراضي
+  if (typeof originalDoLogin === "function") {
+    originalDoLogin();
+    const loginModal = document.getElementById("login-modal");
+    if (loginModal && !loginModal.classList.contains("active")) {
+      const adminUser = {
+        username: username || "admin",
+        agents: { problem: true, code: true, assistant: true }
+      };
+      localStorage.setItem("currentUser", JSON.stringify(adminUser));
+      applyUserPermissions(adminUser);
+    }
+  }
+};
+
+// 5. تحديث دالة تسجيل الخروج لمسح جميع الجلسات عند الضغط على زر "خروج"
 const originalDoLogout = window.doLogout;
 window.doLogout = function() {
-  // مسح الجلسة المحفوظة
   localStorage.removeItem("currentUser");
+  localStorage.removeItem("loggedInUser");
+  sessionStorage.removeItem("loggedInUser");
+  localStorage.removeItem("isLoggedIn");
+  sessionStorage.removeItem("isLoggedIn");
   
-  // إعادة إظهار نافذة تسجيل الدخول وإخفاء رسالة الترحيب
   const loginModal = document.getElementById("login-modal");
   if (loginModal) {
     loginModal.classList.add("active");
@@ -197,38 +255,7 @@ window.doLogout = function() {
     welcomeEl.style.display = "none";
   }
 
-  // استدعاء الدالة الأصلية في script.js إن وجدت
   if (typeof originalDoLogout === "function") {
     originalDoLogout();
   }
 };
-
-// 6. التحقق من الجلسة المحفوظة عند تحميل أو تحديث الصفحة لإبقاء المستخدم مسجلاً للدخول
-window.addEventListener("DOMContentLoaded", () => {
-  const savedUser = localStorage.getItem("currentUser");
-  if (savedUser) {
-    try {
-      const parsedUser = JSON.parse(savedUser);
-      
-      // إخفاء نافذة تسجيل الدخول فوراً
-      const loginModal = document.getElementById("login-modal");
-      if (loginModal) {
-        loginModal.classList.remove("active");
-      }
-
-      // إظهار اسم المستخدم في الشريط العلوي
-      const welcomeEl = document.getElementById("user-welcome");
-      const loggedNameEl = document.getElementById("logged-username");
-      if (welcomeEl && loggedNameEl) {
-        loggedNameEl.textContent = parsedUser.username;
-        welcomeEl.style.display = "inline-flex";
-      }
-
-      // تطبيق صلاحيات الوكلاء الخاصة به
-      applyUserPermissions(parsedUser);
-    } catch (e) {
-      console.error("خطأ في قراءة الجلسة المحفوظة:", e);
-      localStorage.removeItem("currentUser");
-    }
-  }
-});
